@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Nunito", "Comic Sans MS", "Chalkboard SE", "Comic Neue", sans-serif;
+}
+
+body {
+  background-color: #f0f8ff;
+  background-image: radial-gradient(#bde0fe 2px, transparent 2px), radial-gradient(#bde0fe 2px, transparent 2px);
+  background-size: 40px 40px;
+  background-position: 0 0, 20px 20px;
+  color: #333;
+  min-height: 100vh;
+}
