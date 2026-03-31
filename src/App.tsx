@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, ReactNode } from 'react';
+import { useState, useRef, useEffect, ReactNode } from 'react';
 import { Printer, Settings2, AlertCircle, X, Calculator } from 'lucide-react';
 import { cn } from './lib/utils';
 
@@ -29,6 +29,27 @@ export default function App() {
   const [problems, setProblems] = useState<string[]>([]);
   const [error, setError] = useState<string>('');
   const [showPreview, setShowPreview] = useState(false);
+  
+  const [columns, setColumns] = useState<number>(2);
+  const [fontSize, setFontSize] = useState<number>(20);
+  const [previewScale, setPreviewScale] = useState<number>(1);
+  const previewContainerRef = useRef<HTMLDivElement>(null);
+  const previewContentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (showPreview && previewContainerRef.current && previewContentRef.current) {
+      setPreviewScale(1);
+      setTimeout(() => {
+        if (previewContainerRef.current && previewContentRef.current) {
+          const containerHeight = previewContainerRef.current.clientHeight;
+          const contentHeight = previewContentRef.current.scrollHeight;
+          if (contentHeight > containerHeight) {
+            setPreviewScale(containerHeight / contentHeight);
+          }
+        }
+      }, 0);
+    }
+  }, [showPreview, problems, columns, fontSize]);
 
   const toggleArrayItem = (arr: any[], setArr: any, item: any) => {
     if (arr.includes(item)) {
@@ -182,6 +203,14 @@ export default function App() {
               -webkit-print-color-adjust: exact;
               box-sizing: border-box;
             }
+            .page-container {
+              height: 273mm; /* 297mm - 24mm margins */
+              overflow: hidden;
+              position: relative;
+            }
+            .content-wrapper {
+              width: 100%;
+            }
             .header { text-align: center; margin-bottom: 15px; }
             .title { font-size: 26px; font-weight: bold; margin: 0; letter-spacing: 2px; }
             .info-row { 
@@ -194,23 +223,23 @@ export default function App() {
             }
             .grid { 
               display: grid; 
-              grid-template-columns: 1fr 1fr; 
-              column-gap: 40px; 
-              row-gap: 12px; 
+              grid-template-columns: repeat(${columns}, 1fr); 
+              column-gap: ${columns > 2 ? '20px' : '40px'}; 
+              row-gap: ${Math.max(4, 24 - fontSize * 0.5)}px; 
               margin-top: 15px;
             }
             .problem { 
-              font-size: 20px; 
+              font-size: ${fontSize}px; 
               display: flex; 
               align-items: center; 
               line-height: 1.2;
             }
             .index { 
-              width: 40px; 
+              width: 2.5em; 
               text-align: right; 
-              margin-right: 12px; 
+              margin-right: 0.5em; 
               color: #666; 
-              font-size: 16px; 
+              font-size: 0.8em; 
             }
             .equation { 
               font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; 
@@ -219,19 +248,30 @@ export default function App() {
           </style>
         </head>
         <body>
-          <div class="header">
-            <h1 class="title">数学练习题</h1>
-            <div class="info-row">
-              <span>姓名：___________</span>
-              <span>日期：___________</span>
-              <span>得分：___________</span>
+          <div class="page-container" id="page-container">
+            <div class="content-wrapper" id="content-wrapper">
+              <div class="header">
+                <h1 class="title">数学练习题</h1>
+                <div class="info-row">
+                  <span>姓名：___________</span>
+                  <span>日期：___________</span>
+                  <span>得分：___________</span>
+                </div>
+              </div>
+              <div class="grid">
+                ${problemsHtml}
+              </div>
             </div>
-          </div>
-          <div class="grid">
-            ${problemsHtml}
           </div>
           <script>
             window.onload = () => {
+              const container = document.getElementById('page-container');
+              const content = document.getElementById('content-wrapper');
+              const scale = Math.min(1, container.clientHeight / content.scrollHeight);
+              if (scale < 1) {
+                content.style.transform = 'scale(' + scale + ')';
+                content.style.transformOrigin = 'top center';
+              }
               setTimeout(() => {
                 window.print();
               }, 300);
@@ -359,7 +399,7 @@ export default function App() {
       {/* Preview Modal (Hidden when printing, but its contents are shown) */}
       {showPreview && (
         <div className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-5xl max-h-[95vh] flex flex-col overflow-hidden">
             <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-gray-50/50">
               <h3 className="text-2xl font-bold text-gray-800">预览与打印</h3>
               <div className="flex items-center gap-3">
@@ -379,25 +419,76 @@ export default function App() {
               </div>
             </div>
             
-            <div className="flex-1 overflow-y-auto p-8 bg-gray-100 flex justify-center">
-              {/* A4 Paper Simulation */}
-              <div className="bg-white shadow-md flex-shrink-0" style={{ width: '210mm', height: '297mm', padding: '12mm 15mm', boxSizing: 'border-box' }}>
-                <div className="text-center mb-4">
-                  <h1 className="text-[26px] font-bold text-gray-800 leading-tight">数学练习题</h1>
-                  <div className="flex justify-between mt-4 text-base text-gray-600 border-b-2 border-gray-800 pb-2">
-                    <span>姓名：___________</span>
-                    <span>日期：___________</span>
-                    <span>得分：___________</span>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-x-12 gap-y-3 mt-4">
-                  {problems.map((p, i) => (
-                    <div key={i} className="text-[20px] leading-tight font-mono flex items-center">
-                      <span className="w-10 text-right mr-3 text-gray-400 text-base font-sans">({i + 1})</span>
-                      <span className="tracking-widest">{p}</span>
-                    </div>
+            {/* Controls Bar */}
+            <div className="flex flex-wrap items-center gap-6 p-4 border-b border-gray-100 bg-white">
+              <div className="flex items-center gap-3">
+                <span className="text-gray-700 font-bold">排版列数:</span>
+                <div className="flex bg-gray-100 p-1 rounded-lg">
+                  {[2, 3, 4].map(c => (
+                    <button 
+                      key={c} 
+                      onClick={() => setColumns(c)}
+                      className={cn("px-4 py-1.5 rounded-md font-medium transition-colors", columns === c ? "bg-white text-blue-600 shadow-sm" : "text-gray-600 hover:text-gray-900")}
+                    >
+                      {c} 列
+                    </button>
                   ))}
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-gray-700 font-bold">字体大小:</span>
+                <div className="flex bg-gray-100 p-1 rounded-lg">
+                  {[16, 20, 24, 28, 32, 36].map(s => (
+                    <button 
+                      key={s} 
+                      onClick={() => setFontSize(s)}
+                      className={cn("px-3 py-1.5 rounded-md font-medium transition-colors", fontSize === s ? "bg-white text-blue-600 shadow-sm" : "text-gray-600 hover:text-gray-900")}
+                    >
+                      {s}px
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="text-sm text-gray-500 ml-auto flex items-center">
+                <AlertCircle className="w-4 h-4 mr-1" />
+                若内容超出，将自动缩放以适应单页A4
+              </div>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6 bg-gray-100 flex justify-center">
+              {/* A4 Paper Simulation */}
+              <div className="bg-white shadow-md flex-shrink-0 relative overflow-hidden" style={{ width: '210mm', height: '297mm', padding: '12mm 15mm', boxSizing: 'border-box' }}>
+                <div 
+                  ref={previewContainerRef}
+                  className="w-full h-full relative"
+                >
+                  <div 
+                    ref={previewContentRef}
+                    className="w-full origin-top"
+                    style={{ transform: `scale(${previewScale})` }}
+                  >
+                    <div className="text-center mb-4">
+                      <h1 className="text-[26px] font-bold text-gray-800 leading-tight">数学练习题</h1>
+                      <div className="flex justify-between mt-4 text-base text-gray-600 border-b-2 border-gray-800 pb-2">
+                        <span>姓名：___________</span>
+                        <span>日期：___________</span>
+                        <span>得分：___________</span>
+                      </div>
+                    </div>
+                    
+                    <div className="grid mt-4" style={{ 
+                      gridTemplateColumns: `repeat(${columns}, 1fr)`,
+                      columnGap: columns > 2 ? '20px' : '40px',
+                      rowGap: `${Math.max(4, 24 - fontSize * 0.5)}px`
+                    }}>
+                      {problems.map((p, i) => (
+                        <div key={i} className="font-mono flex items-center" style={{ fontSize: `${fontSize}px`, lineHeight: 1.2 }}>
+                          <span className="text-right text-gray-400 font-sans" style={{ width: '2.5em', marginRight: '0.5em', fontSize: '0.8em' }}>({i + 1})</span>
+                          <span className="tracking-widest">{p}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
