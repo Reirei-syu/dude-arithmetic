@@ -33,8 +33,32 @@ export default function App() {
   const [columns, setColumns] = useState<number>(2);
   const [fontSize, setFontSize] = useState<number>(20);
   const [previewScale, setPreviewScale] = useState<number>(1);
+  const [paperScale, setPaperScale] = useState<number>(1);
   const previewContainerRef = useRef<HTMLDivElement>(null);
   const previewContentRef = useRef<HTMLDivElement>(null);
+  const outerContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const updatePaperScale = () => {
+      if (outerContainerRef.current) {
+        const containerWidth = outerContainerRef.current.clientWidth;
+        const padding = 32; // 16px padding on each side (p-4)
+        const availableWidth = containerWidth - padding;
+        const a4WidthPx = 794; // 210mm in pixels
+        if (availableWidth < a4WidthPx) {
+          setPaperScale(availableWidth / a4WidthPx);
+        } else {
+          setPaperScale(1);
+        }
+      }
+    };
+
+    if (showPreview) {
+      updatePaperScale();
+      window.addEventListener('resize', updatePaperScale);
+      return () => window.removeEventListener('resize', updatePaperScale);
+    }
+  }, [showPreview]);
 
   useEffect(() => {
     if (showPreview && previewContainerRef.current && previewContentRef.current) {
@@ -399,65 +423,66 @@ export default function App() {
       {/* Preview Modal (Hidden when printing, but its contents are shown) */}
       {showPreview && (
         <div className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-5xl max-h-[95vh] flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-gray-50/50">
-              <h3 className="text-2xl font-bold text-gray-800">预览与打印</h3>
-              <div className="flex items-center gap-3">
+          <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-5xl max-h-[95vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-100 bg-gray-50/50">
+              <h3 className="text-xl sm:text-2xl font-bold text-gray-800">预览与打印</h3>
+              <div className="flex items-center gap-2 sm:gap-3">
                 <button 
                   onClick={handlePrint}
-                  className="px-6 py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold flex items-center shadow-md shadow-blue-500/20 transition-colors"
+                  className="px-4 sm:px-6 py-2 sm:py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold flex items-center shadow-md shadow-blue-500/20 transition-colors text-sm sm:text-base"
                 >
-                  <Printer className="w-5 h-5 mr-2" />
+                  <Printer className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" />
                   打印 A4
                 </button>
                 <button 
                   onClick={() => setShowPreview(false)}
-                  className="p-2.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl transition-colors"
+                  className="p-2 sm:p-2.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl transition-colors"
                 >
-                  <X className="w-6 h-6" />
+                  <X className="w-5 h-5 sm:w-6 sm:h-6" />
                 </button>
               </div>
             </div>
             
             {/* Controls Bar */}
-            <div className="flex flex-wrap items-center gap-6 p-4 border-b border-gray-100 bg-white">
-              <div className="flex items-center gap-3">
-                <span className="text-gray-700 font-bold">排版列数:</span>
-                <div className="flex bg-gray-100 p-1 rounded-lg">
+            <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-4 sm:gap-6 p-4 border-b border-gray-100 bg-white overflow-y-auto max-h-[40vh] sm:max-h-none">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
+                <span className="text-gray-700 font-bold text-sm sm:text-base">排版列数:</span>
+                <div className="grid grid-cols-3 sm:flex sm:flex-wrap bg-gray-100 p-1 rounded-lg gap-1 w-full sm:w-auto">
                   {[2, 3, 4].map(c => (
                     <button 
                       key={c} 
                       onClick={() => setColumns(c)}
-                      className={cn("px-4 py-1.5 rounded-md font-medium transition-colors", columns === c ? "bg-white text-blue-600 shadow-sm" : "text-gray-600 hover:text-gray-900")}
+                      className={cn("px-2 sm:px-4 py-1.5 rounded-md font-medium transition-colors text-sm sm:text-base text-center", columns === c ? "bg-white text-blue-600 shadow-sm" : "text-gray-600 hover:text-gray-900")}
                     >
                       {c} 列
                     </button>
                   ))}
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <span className="text-gray-700 font-bold">字体大小:</span>
-                <div className="flex bg-gray-100 p-1 rounded-lg">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
+                <span className="text-gray-700 font-bold text-sm sm:text-base">字体大小:</span>
+                <div className="grid grid-cols-3 sm:flex sm:flex-wrap bg-gray-100 p-1 rounded-lg gap-1 w-full sm:w-auto">
                   {[16, 20, 24, 28, 32, 36].map(s => (
                     <button 
                       key={s} 
                       onClick={() => setFontSize(s)}
-                      className={cn("px-3 py-1.5 rounded-md font-medium transition-colors", fontSize === s ? "bg-white text-blue-600 shadow-sm" : "text-gray-600 hover:text-gray-900")}
+                      className={cn("px-1 sm:px-3 py-1.5 rounded-md font-medium transition-colors text-xs sm:text-base text-center", fontSize === s ? "bg-white text-blue-600 shadow-sm" : "text-gray-600 hover:text-gray-900")}
                     >
                       {s}px
                     </button>
                   ))}
                 </div>
               </div>
-              <div className="text-sm text-gray-500 ml-auto flex items-center">
-                <AlertCircle className="w-4 h-4 mr-1" />
+              <div className="text-xs sm:text-sm text-gray-500 sm:ml-auto flex items-center w-full sm:w-auto mt-2 sm:mt-0">
+                <AlertCircle className="w-4 h-4 mr-1 flex-shrink-0" />
                 若内容超出，将自动缩放以适应单页A4
               </div>
             </div>
             
-            <div className="flex-1 overflow-y-auto p-6 bg-gray-100 flex justify-center">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 bg-gray-100 flex justify-center" ref={outerContainerRef}>
               {/* A4 Paper Simulation */}
-              <div className="bg-white shadow-md flex-shrink-0 relative overflow-hidden" style={{ width: '210mm', height: '297mm', padding: '12mm 15mm', boxSizing: 'border-box' }}>
+              <div style={{ width: `${794 * paperScale}px`, height: `${1123 * paperScale}px`, position: 'relative' }} className="flex-shrink-0">
+                <div className="bg-white shadow-md absolute top-0 left-0 origin-top-left overflow-hidden" style={{ width: '794px', height: '1123px', padding: '45px 56px', boxSizing: 'border-box', transform: `scale(${paperScale})` }}>
                 <div 
                   ref={previewContainerRef}
                   className="w-full h-full relative"
@@ -494,6 +519,7 @@ export default function App() {
             </div>
           </div>
         </div>
+      </div>
       )}
     </div>
   );
