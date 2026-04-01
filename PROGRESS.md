@@ -22,7 +22,7 @@
 
 ## 任务进度百分比
 
-- 90%
+- 100%
 
 ## 方案路径
 
@@ -32,13 +32,14 @@
 
 - `npm run build`：通过
 - `curl.exe -I https://reirei-syu.github.io/dude-arithmetic/`：返回 `200 OK`
-- `https://api.github.com/repos/Reirei-syu/dude-arithmetic/actions/workflows`：返回 `0` 条活动工作流
+- `https://api.github.com/repos/Reirei-syu/dude-arithmetic/actions/workflows`：返回 `1` 条活动工作流
+- `https://api.github.com/repos/Reirei-syu/dude-arithmetic/actions/runs/23830700158`：状态 `completed`，结论 `success`
+- `git ls-remote origin gh-pages`：分支头已更新为 `775b7cb266ee54e276b05741ba760d5596d4fe4c`
 
 ## 风险备注
 
-- 当前线上站点来自 `gh-pages` 分支的旧发布产物
-- 自动部署恢复依赖将当前工作流推送到远程 `main`
 - 当前方案延续 `gh-pages` 分支发布，避免额外修改 GitHub Pages Source
+- 后续若切换为 GitHub Pages 官方 artifact 模式，需要同步调整仓库 Pages 设置与工作流实现
 
 ## Lessons Learned
 
