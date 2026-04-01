@@ -6,19 +6,21 @@
 
 ## 当前任务
 
-- 收敛 GitHub 自动化配置，仅保留 GitHub Pages 自动部署所需工作流
+- 优化移动端使用体验，确保预览弹窗与控制条在手机屏幕内可用
 
 ## 本次修改
 
-- 新增 `.github/workflows/deploy.yml`
-- 确认远程默认分支为 `main`
-- 确认远程存在 `gh-pages` 分支，站点地址可访问
-- 确认当前远程仓库活动工作流数量为 `0`
+- 重写 `src/App.tsx`，清理原有乱码和脆弱的弹窗结构
+- 优化首页卡片、按钮、输入框和标题的移动端尺寸与间距
+- 将预览弹窗改为移动端全屏布局，头部和操作按钮支持窄屏换行
+- 将字体大小和排版列数控制区改为移动端可见的网格布局
+- 将 A4 预览缩放逻辑改为同时受可用宽度和高度约束，避免在手机上把控件挤出屏幕
 
 ## 影响范围
 
-- GitHub Actions
-- GitHub Pages 部署链路
+- 移动端首页布局
+- 预览弹窗布局
+- A4 预览缩放逻辑
 
 ## 任务进度百分比
 
@@ -31,17 +33,18 @@
 ## 验证结果
 
 - `npm run build`：通过
-- `curl.exe -I https://reirei-syu.github.io/dude-arithmetic/`：返回 `200 OK`
-- `https://api.github.com/repos/Reirei-syu/dude-arithmetic/actions/workflows`：返回 `1` 条活动工作流
-- `https://api.github.com/repos/Reirei-syu/dude-arithmetic/actions/runs/23830700158`：状态 `completed`，结论 `success`
-- `git ls-remote origin gh-pages`：分支头已更新为 `775b7cb266ee54e276b05741ba760d5596d4fe4c`
+- 临时 Playwright 真机尺寸验证（iPhone 13 视口）：通过
+- 验证结论：
+  - `16px` 字体按钮可见
+  - `36px` 字体按钮可见
+  - 预览弹窗头部、控制条和 A4 预览区均在手机屏幕内可操作
 
 ## 风险备注
 
-- 当前方案延续 `gh-pages` 分支发布，避免额外修改 GitHub Pages Source
-- 后续若切换为 GitHub Pages 官方 artifact 模式，需要同步调整仓库 Pages 设置与工作流实现
+- 本次为单组件重写，未改动题目生成算法和部署配置
+- 预览弹窗仍以单页 A4 为目标，极端小屏设备上预览会进一步缩小，但不会再遮挡控制区
 
 ## Lessons Learned
 
-- 历史上曾同时存在 `static.yml` 和 `deploy.yml`，当前分支已全部移除，后续应只保留一条部署工作流
-- 现有远程配置更适合保持 `main -> build -> gh-pages` 的单链路发布方式，能兼容当前已在线的 Pages 站点
+- 继续在旧的乱码 JSX 上做局部补丁，风险高于单文件重写
+- 移动端预览问题不能只按宽度缩放，必须同时考虑可用高度，否则控制区容易被纸张预览挤压
