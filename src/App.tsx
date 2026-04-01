@@ -262,100 +262,137 @@ export default function App() {
       )
       .join('');
 
+    // 根据字体大小和列数计算合适的行间距（mm单位）
+    const rowGapMm = Math.max(1, Math.round((24 - fontSize * 0.5) * 0.26));
+    const colGapMm = columns > 2 ? 5 : 10;
+    // 根据字体大小计算mm单位的字体
+    const fontSizeMm = Math.round(fontSize * 0.26 * 100) / 100;
+    const indexFontSizeMm = Math.round(fontSizeMm * 0.8 * 100) / 100;
+
     const html = `
       <!DOCTYPE html>
       <html lang="zh-CN">
         <head>
           <meta charset="UTF-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
           <title>数学练习题 - dude-arithmetic</title>
           <style>
-            @page { size: A4; margin: 12mm 15mm; }
-            body {
-              font-family: "Nunito", "Comic Sans MS", "Chalkboard SE", sans-serif;
+            @page {
+              size: A4;
+              margin: 12mm 15mm;
+            }
+            *, *::before, *::after {
+              box-sizing: border-box;
               margin: 0;
               padding: 0;
+            }
+            html, body {
+              width: 100%;
+              height: 100%;
+              margin: 0;
+              padding: 0;
+            }
+            body {
+              font-family: "Nunito", "Comic Sans MS", "Chalkboard SE", sans-serif;
               color: #000;
               -webkit-print-color-adjust: exact;
-              box-sizing: border-box;
+              print-color-adjust: exact;
             }
-            .page-container {
-              height: 273mm;
+            .page {
+              width: 180mm;
+              max-height: 273mm;
               overflow: hidden;
-              position: relative;
-            }
-            .content-wrapper {
-              width: 100%;
+              margin: 0 auto;
+              padding: 0;
             }
             .header {
               text-align: center;
-              margin-bottom: 15px;
+              margin-bottom: 4mm;
             }
             .title {
-              font-size: 26px;
+              font-size: 7mm;
               font-weight: bold;
               margin: 0;
-              letter-spacing: 2px;
+              letter-spacing: 1mm;
             }
             .info-row {
               display: flex;
               justify-content: space-between;
-              margin-top: 15px;
-              font-size: 16px;
-              border-bottom: 2px solid #000;
-              padding-bottom: 8px;
+              margin-top: 4mm;
+              font-size: 4mm;
+              border-bottom: 0.5mm solid #000;
+              padding-bottom: 2mm;
             }
             .grid {
               display: grid;
               grid-template-columns: repeat(${columns}, 1fr);
-              column-gap: ${columns > 2 ? '20px' : '40px'};
-              row-gap: ${Math.max(4, 24 - fontSize * 0.5)}px;
-              margin-top: 15px;
+              column-gap: ${colGapMm}mm;
+              row-gap: ${rowGapMm}mm;
+              margin-top: 4mm;
             }
             .problem {
-              font-size: ${fontSize}px;
+              font-size: ${fontSizeMm}mm;
               display: flex;
               align-items: center;
-              line-height: 1.2;
+              line-height: 1.3;
+              break-inside: avoid;
             }
             .index {
               width: 2.5em;
               text-align: right;
               margin-right: 0.5em;
               color: #666;
-              font-size: 0.8em;
+              font-size: ${indexFontSizeMm}mm;
+              flex-shrink: 0;
             }
             .equation {
               font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-              letter-spacing: 2px;
+              letter-spacing: 0.5mm;
+              white-space: nowrap;
+            }
+            /* 非打印时显示为居中页面 */
+            @media screen {
+              body {
+                background: #f5f5f5;
+                display: flex;
+                justify-content: center;
+                padding: 20px;
+              }
+              .page {
+                background: white;
+                padding: 12mm 15mm;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+              }
+            }
+            /* 打印时无额外间距 */
+            @media print {
+              body { background: none; }
+              .page {
+                width: 100%;
+                max-height: none;
+                box-shadow: none;
+              }
             }
           </style>
         </head>
         <body>
-          <div class="page-container" id="page-container">
-            <div class="content-wrapper" id="content-wrapper">
-              <div class="header">
-                <h1 class="title">数学练习题</h1>
-                <div class="info-row">
-                  <span>姓名：__________</span>
-                  <span>日期：__________</span>
-                  <span>得分：__________</span>
-                </div>
+          <div class="page">
+            <div class="header">
+              <h1 class="title">数学练习题</h1>
+              <div class="info-row">
+                <span>姓名：__________</span>
+                <span>日期：__________</span>
+                <span>得分：__________</span>
               </div>
-              <div class="grid">
-                ${problemsHtml}
-              </div>
+            </div>
+            <div class="grid">
+              ${problemsHtml}
             </div>
           </div>
           <script>
+            // 等待布局完成后自动弹出打印
             window.onload = () => {
-              const container = document.getElementById('page-container');
-              const content = document.getElementById('content-wrapper');
-              const scale = Math.min(1, container.clientHeight / content.scrollHeight);
-              if (scale < 1) {
-                content.style.transform = 'scale(' + scale + ')';
-                content.style.transformOrigin = 'top center';
-              }
-              setTimeout(() => window.print(), 300);
+              setTimeout(() => window.print(), 400);
             };
           </script>
         </body>
@@ -481,16 +518,16 @@ export default function App() {
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-4 sm:gap-6 p-3 sm:p-4 border-b border-gray-100 bg-white overflow-y-auto overflow-x-hidden max-h-[34dvh] sm:max-h-none">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 w-full">
-                <span className="text-gray-700 font-bold text-sm sm:text-base">排版列数:</span>
-                <div className="grid grid-cols-3 sm:flex sm:flex-wrap bg-gray-100 p-1 rounded-lg gap-1 w-full sm:w-auto">
+            <div className="flex flex-row flex-wrap items-center gap-3 sm:gap-4 p-3 sm:px-6 sm:py-3 border-b border-gray-100 bg-white">
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-gray-700 font-bold text-sm sm:text-base whitespace-nowrap">排版列数:</span>
+                <div className="flex bg-gray-100 p-0.5 rounded-lg gap-0.5">
                   {columnOptions.map((value) => (
                     <button
                       key={value}
                       onClick={() => setColumns(value)}
                       className={cn(
-                        'w-full px-2 sm:px-4 py-1.5 rounded-md font-medium transition-colors text-sm sm:text-base text-center',
+                        'px-3 py-1.5 rounded-md font-medium transition-colors text-sm text-center whitespace-nowrap',
                         columns === value ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:text-gray-900',
                       )}
                     >
@@ -500,15 +537,17 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 w-full">
-                <span className="text-gray-700 font-bold text-sm sm:text-base">字体大小:</span>
-                <div className="grid grid-cols-3 sm:flex sm:flex-wrap bg-gray-100 p-1 rounded-lg gap-1 w-full sm:w-auto">
+              <div className="hidden sm:block w-px h-6 bg-gray-200" />
+
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-gray-700 font-bold text-sm sm:text-base whitespace-nowrap">字体大小:</span>
+                <div className="flex bg-gray-100 p-0.5 rounded-lg gap-0.5">
                   {fontSizeOptions.map((value) => (
                     <button
                       key={value}
                       onClick={() => setFontSize(value)}
                       className={cn(
-                        'w-full px-2 sm:px-3 py-1.5 rounded-md font-medium transition-colors text-xs sm:text-base text-center',
+                        'px-2 sm:px-3 py-1.5 rounded-md font-medium transition-colors text-xs sm:text-sm text-center',
                         fontSize === value ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:text-gray-900',
                       )}
                     >
@@ -518,9 +557,9 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="text-xs sm:text-sm text-gray-500 flex items-center w-full sm:w-auto sm:ml-auto">
-                <AlertCircle className="w-4 h-4 mr-1 flex-shrink-0" />
-                若内容超出，将自动缩放以适应单页 A4
+              <div className="hidden sm:flex text-xs sm:text-sm text-gray-400 items-center ml-auto shrink-0">
+                <AlertCircle className="w-3.5 h-3.5 mr-1 flex-shrink-0" />
+                若超出将自动缩放适应 A4
               </div>
             </div>
 
