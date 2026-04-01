@@ -1,20 +1,11 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# dude-arithmetic
 
-# Run and deploy your AI Studio app
+自动生成算术题（纯本地版）
 
-This contains everything you need to run your app locally.
+一个简单好用的网页工具，可以自定义位数、运算符号、答案上限，一键生成 50 道算术题，支持打印预览。
 
-View your app in AI Studio: https://ai.studio/apps/c6efe2a1-6452-4145-83f9-ae9a1e8bfa1e
+## 快速开始
 
-## Run Locally
-
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+```bash
+npm install
+npm run dev

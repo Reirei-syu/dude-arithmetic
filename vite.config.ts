@@ -1,25 +1,34 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig, loadEnv} from 'vite';
+import { defineConfig } from 'vite';
 
-export default defineConfig(({mode}) => {
-  const env = loadEnv(mode, '.', '');
-  return {
-    base: '/dude-arithmetic/',
-    plugins: [react(), tailwindcss()],
-    define: {
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+export default defineConfig({
+  // GitHub Pages 部署必须配置
+  base: '/dude-arithmetic/',
+
+  plugins: [react(), tailwindcss()],
+
+  // 路径别名（推荐写法）
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
     },
-    resolve: {
-      alias: {
-        '@': path.resolve(__dirname, '.'),
-      },
-    },
-    server: {
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
-      hmr: process.env.DISABLE_HMR !== 'true',
-    },
-  };
+  },
+
+  // 构建优化
+  build: {
+    sourcemap: false,   // 生产环境关闭 sourcemap，体积更小
+  },
+
+  // 本地开发服务器
+  server: {
+    hmr: true,
+  },
+
+  // 本地预览（npm run preview）
+  preview: {
+    port: 4173,
+    open: true,
+  },
 });
