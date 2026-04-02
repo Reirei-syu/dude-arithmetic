@@ -4,13 +4,19 @@
  */
 
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { AlertCircle, Calculator, Printer, Settings2, X } from 'lucide-react';
+import { AlertCircle, Calculator, Lightbulb, Printer, Settings2, X } from 'lucide-react';
 import { cn } from './lib/utils';
 
 const digitOptions = [1, 2, 3, 4, 5];
 const operatorOptions = ['+', '-', '×', '÷'];
 const columnOptions = [2, 3, 4];
 const fontSizeOptions = [16, 20, 24, 28, 32, 36];
+const conceptTips = [
+  { label: 'A', description: '题目左边的数字，你选择它要有几位数。' },
+  { label: '运算', description: '选择 +、-、×、÷ 中的哪一种规则。' },
+  { label: 'C', description: '题目右边的数字，你也可以限制它的位数。' },
+  { label: 'D', description: '最终答案，系统会保证它不超过你设定的上限。' },
+];
 
 function ToggleButton({
   active,
@@ -413,6 +419,46 @@ export default function App() {
           </div>
           <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-800 drop-shadow-sm">趣味数学题生成器</h1>
           <p className="text-gray-600 mt-2 text-base sm:text-lg">轻松生成 A4 打印版加减乘除练习题</p>
+        </div>
+
+        <div className="bg-white/55 backdrop-blur-xl border border-white/70 shadow-lg rounded-2xl p-4 sm:p-5 mb-6 sm:mb-8">
+          <div className="flex items-start gap-3 sm:gap-4">
+            <div className="flex-shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-2xl bg-amber-100 text-amber-600 shadow-sm">
+              <Lightbulb className="w-5 h-5" />
+            </div>
+
+            <div className="min-w-0 flex-1 space-y-3">
+              <div>
+                <p className="text-xs sm:text-sm font-semibold tracking-[0.18em] text-amber-600 uppercase">首次使用说明</p>
+                <h2 className="text-lg sm:text-xl font-bold text-gray-800 mt-1">先理解这条规则：A 运算 C = D</h2>
+              </div>
+
+              <p className="text-sm sm:text-base text-gray-600 leading-6">
+                A 是左边的数字，C 是右边的数字，D 是答案。你先决定 A 和 C 要有几位数，再选择运算符号，并限制 D 的最大值，系统就会自动生成满足条件的题目。
+              </p>
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                {conceptTips.map((tip) => (
+                  <div key={tip.label} className="rounded-2xl border border-white/80 bg-white/70 px-3 py-3 shadow-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center justify-center min-w-8 h-8 px-2 rounded-xl bg-blue-100 text-blue-600 font-bold text-sm">
+                        {tip.label}
+                      </span>
+                      <p className="text-sm text-gray-700 leading-5">{tip.description}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="rounded-2xl border border-blue-100 bg-blue-50/90 px-3 py-3 sm:px-4">
+                <p className="text-sm sm:text-base text-blue-900 leading-6">
+                  例如：A 选 <span className="font-bold">2 位数</span>，运算选 <span className="font-bold">+</span>，C 选 <span className="font-bold">1 位数</span>，并设置 <span className="font-bold">D ≤ 100</span>，系统就会生成类似
+                  <span className="mx-1 inline-block rounded-md bg-white px-2 py-0.5 font-mono text-blue-700 shadow-sm">34 + 5 =</span>
+                  这样的题目。
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="bg-white/40 backdrop-blur-xl border border-white/60 shadow-xl rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 mb-8 relative overflow-hidden">
