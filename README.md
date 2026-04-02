@@ -1,11 +1,37 @@
 # dude-arithmetic
 
-自动生成算术题（纯本地版）
+自动生成算术题的纯本地网页工具。
 
-一个简单好用的网页工具，可以自定义位数、运算符号、答案上限，一键生成 50 道算术题，支持打印预览。
+支持自定义：
+- A 的位数
+- 运算符号
+- C 的位数
+- 答案上限 D
+- 打印预览时的列数和字体大小
 
-## 快速开始
+项目当前不依赖任何外部 API，也不需要配置环境变量。
+
+## 本地运行
 
 ```bash
 npm install
 npm run dev
+```
+
+默认地址：
+
+```text
+http://127.0.0.1:3000/dude-arithmetic/
+```
+
+## 常用命令
+
+```bash
+npm run lint
+npm run build
+npm run clean
+```
+
+## 部署
+
+推送到 `main` 后，GitHub Actions 会自动构建并部署到 GitHub Pages。

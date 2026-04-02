@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { type Key, type ReactNode, useEffect, useRef, useState } from 'react';
 import { AlertCircle, Calculator, Lightbulb, Printer, Settings2, X } from 'lucide-react';
 import { cn } from './lib/utils';
 
@@ -24,6 +24,7 @@ function ToggleButton({
   children,
 }: {
   active: boolean;
+  key?: Key;
   onClick: () => void;
   children: ReactNode;
 }) {
