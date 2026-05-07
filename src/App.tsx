@@ -514,19 +514,14 @@ export default function App() {
       attempts++;
 
       if (funType === 'guess-op') {
-        let a = randomInRange(rA.min, rA.max);
-        let c = randomInRange(rC.min, rC.max);
-        if (c === 0) continue;
-        if (funAllowNegative) {
-          if (Math.random() < 0.5) a = -a;
-          if (Math.random() < 0.5 && c !== 0) c = -c;
-        }
-        // exclude ÷ by 0 after negating
+        const a = randomInRange(rA.min, rA.max);
+        const c = randomInRange(rC.min, rC.max);
         if (c === 0) continue;
         const op = operatorOptions[Math.floor(Math.random() * operatorOptions.length)];
         const ans = computeAnswer(a, op, c);
         if (!isFinite(ans) || !Number.isInteger(ans)) continue;
         if (ans < -99999 || ans > 99999) continue;
+        if (!funAllowNegative && ans < 0) continue;
         const key = `${a}|${c}|${ans}|guessop`;
         if (seen.has(key)) continue;
         seen.add(key);
@@ -879,7 +874,7 @@ export default function App() {
             {/* per-type info tip */}
             <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-3 py-3 sm:px-4 text-sm text-amber-900 leading-6">
               {funType === 'guess-op' && (
-                <p><span className="font-bold">A</span>（左边数字）  <span className="font-bold">符号?</span>  <span className="font-bold">C</span>（右边数字）  =  <span className="font-bold">D</span>（结果）<br/>给出 A、C、D，猜中间的运算符号。</p>
+                <p><span className="font-bold">A</span>（左边数字）  <span className="font-bold">符号?</span>  <span className="font-bold">C</span>（右边数字）  =  <span className="font-bold">D</span>（结果）<br/>给出 A、C、D，猜中间的运算符号。A/C 是否负数由范围决定，D 是否负数由下方开关控制。</p>
               )}
               {funType === 'mixed' && (
                 <p><span className="font-bold">A</span>（第一个数）  ○  <span className="font-bold">B</span>（第二个数）  ○  <span className="font-bold">C</span>（第三个数）  =  <span className="font-bold">答案</span><br/>先算 B ○ C，再算 A ○ 结果。上下两个运算符号独立随机。</p>
@@ -913,7 +908,7 @@ export default function App() {
             {funType === 'guess-op' && (
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={funAllowNegative} onChange={(e) => setFunAllowNegative(e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-500 focus:ring-blue-400" />
-                <span className="text-sm text-gray-700 font-bold">包含负数（A 和 C 随机变为负数）</span>
+                <span className="text-sm text-gray-700 font-bold">答案 D 可以为负数</span>
               </label>
             )}
 
