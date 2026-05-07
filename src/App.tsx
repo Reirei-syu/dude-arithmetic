@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { type Key, type ReactNode, useEffect, useRef, useState } from 'react';
+import { type Key, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, Calculator, Lightbulb, Printer, Settings2, X } from 'lucide-react';
 import { cn } from './lib/utils';
 
@@ -15,18 +15,84 @@ type ProblemItem = {
   right: number;
 };
 
-const digitOptions = [1, 2, 3, 4, 5];
+const digitShortcuts = [1, 2, 3];
 const operatorOptions = ['+', '-', '×', '÷'];
 const columnOptions = [2, 3, 4];
 const fontSizeOptions = [16, 20, 24, 28, 32, 36];
 const maxProblemCount = 200;
+const problemsPerDay = 64;
 
 const conceptTips = [
   { label: 'A', description: '题目左边的数字，你可以限制它是几位数。' },
   { label: '运算', description: '选择 +、-、×、÷ 中的哪一种运算规则。' },
   { label: 'C', description: '题目右边的数字，也可以单独限制位数。' },
-  { label: 'D', description: '最终答案，系统会保证它不超过你设置的上限。' },
+  { label: 'D', description: '最终答案，系统会保证它在设定的范围内。' },
 ];
+
+/* ---------- helpers ---------- */
+
+function parseIntSafe(val: string, fallback: number = 0): number {
+  if (val === '' || val === '-' || val === '+') return fallback;
+  const n = parseInt(val, 10);
+  return isNaN(n) ? fallback : n;
+}
+
+function formatInputValue(val: string): string {
+  return val;
+}
+
+/** expand shortcuts + manual range into a deduplicated digit list */
+function effectiveDigits(shortcuts: number[], from: string, to: string): number[] {
+  const set = new Set(shortcuts);
+  const f = parseIntSafe(from, NaN);
+  const t = parseIntSafe(to, NaN);
+  if (!isNaN(f) && !isNaN(t)) {
+    const lo = Math.min(f, t);
+    const hi = Math.max(f, t);
+    for (let i = lo; i <= hi; i++) {
+      set.add(i);
+    }
+  }
+  return [...set].sort((a, b) => a - b);
+}
+
+/** generate a signed integer whose absolute value has |length| digits */
+function generateNum(length: number): number {
+  const absLen = Math.abs(length);
+  const isNeg = length < 0;
+  if (absLen === 1) {
+    const val = Math.floor(Math.random() * 9) + 1;
+    return isNeg ? -val : val;
+  }
+  const min = Math.pow(10, absLen - 1);
+  const max = Math.pow(10, absLen) - 1;
+  const val = Math.floor(Math.random() * (max - min + 1)) + min;
+  return isNeg ? -val : val;
+}
+
+/** value range (min, max) for a number with given digit count */
+function digitValueRange(length: number): { min: number; max: number } {
+  const absLen = Math.abs(length);
+  const isNeg = length < 0;
+  const lo = absLen === 1 ? 1 : Math.pow(10, absLen - 1);
+  const hi = Math.pow(10, absLen) - 1;
+  return isNeg ? { min: -hi, max: -lo } : { min: lo, max: hi };
+}
+
+/** overall value range across a list of digit counts */
+function overallValueRange(digits: number[]): { min: number; max: number } | null {
+  if (digits.length === 0) return null;
+  let min = Infinity;
+  let max = -Infinity;
+  for (const d of digits) {
+    const r = digitValueRange(d);
+    if (r.min < min) min = r.min;
+    if (r.max > max) max = r.max;
+  }
+  return { min, max };
+}
+
+/* ---------- UI primitives ---------- */
 
 function ToggleButton({
   active,
@@ -54,18 +120,15 @@ function ToggleButton({
 }
 
 function chunkItems<T>(items: T[], size: number) {
-  if (size <= 0) {
-    return [items];
-  }
-
+  if (size <= 0) return [items];
   const pages: T[][] = [];
-
   for (let index = 0; index < items.length; index += size) {
     pages.push(items.slice(index, index + size));
   }
-
   return pages;
 }
+
+/* ---------- page metrics ---------- */
 
 function getProblemPageMetrics(columns: number, fontSize: number) {
   const fontSizeMm = Math.round(fontSize * 0.26 * 100) / 100;
@@ -75,14 +138,7 @@ function getProblemPageMetrics(columns: number, fontSize: number) {
   const rowHeightMm = fontSizeMm * 1.35 + rowGapMm;
   const availableGridHeightMm = 273 - 28;
   const rowsPerPage = Math.max(1, Math.floor((availableGridHeightMm + rowGapMm) / rowHeightMm));
-
-  return {
-    columnGapMm,
-    fontSizeMm,
-    indexFontSizeMm,
-    itemsPerPage: rowsPerPage * columns,
-    rowGapMm,
-  };
+  return { columnGapMm, fontSizeMm, indexFontSizeMm, itemsPerPage: rowsPerPage * columns, rowGapMm };
 }
 
 function getAnswerPageMetrics() {
@@ -92,13 +148,7 @@ function getAnswerPageMetrics() {
   const rowHeightMm = fontSizeMm * 1.45 + rowGapMm;
   const availableGridHeightMm = 273 - 20;
   const rowsPerPage = Math.max(1, Math.floor((availableGridHeightMm + rowGapMm) / rowHeightMm));
-
-  return {
-    columns,
-    fontSizeMm,
-    itemsPerPage: rowsPerPage * columns,
-    rowGapMm,
-  };
+  return { columns, fontSizeMm, itemsPerPage: rowsPerPage * columns, rowGapMm };
 }
 
 function formatExpression(problem: ProblemItem) {
@@ -109,12 +159,32 @@ function formatAnswer(problem: ProblemItem) {
   return `${problem.left} ${problem.operator} ${problem.right} = ${problem.answer}`;
 }
 
+/* ---------- App ---------- */
+
 export default function App() {
-  const [digitsA, setDigitsA] = useState<number[]>([1, 2]);
+  // --- A digits ---
+  const [digitsAShortcuts, setDigitsAShortcuts] = useState<number[]>([1, 2]);
+  const [digitsAFrom, setDigitsAFrom] = useState('');
+  const [digitsATo, setDigitsATo] = useState('');
+
+  // --- operators ---
   const [operators, setOperators] = useState<string[]>(['+', '-']);
-  const [digitsC, setDigitsC] = useState<number[]>([1, 2]);
-  const [limitD, setLimitD] = useState<number>(100);
-  const [problemCount, setProblemCount] = useState<number>(50);
+
+  // --- C digits ---
+  const [digitsCShortcuts, setDigitsCShortcuts] = useState<number[]>([1, 2]);
+  const [digitsCFrom, setDigitsCFrom] = useState('');
+  const [digitsCTo, setDigitsCTo] = useState('');
+
+  // --- D range ---
+  const [limitDMin, setLimitDMin] = useState('0');
+  const [limitDMax, setLimitDMax] = useState('100');
+
+  // --- count ---
+  const [countMode, setCountMode] = useState<'count' | 'days'>('count');
+  const [problemCount, setProblemCount] = useState('64');
+  const [days, setDays] = useState('1');
+
+  // --- print options ---
   const [includeAnswerPage, setIncludeAnswerPage] = useState<boolean>(false);
   const [problems, setProblems] = useState<ProblemItem[]>([]);
   const [error, setError] = useState('');
@@ -128,18 +198,38 @@ export default function App() {
   const previewContentRef = useRef<HTMLDivElement>(null);
   const outerContainerRef = useRef<HTMLDivElement>(null);
 
+  // --- derived ---
+
+  const digitsA = useMemo(
+    () => effectiveDigits(digitsAShortcuts, digitsAFrom, digitsATo),
+    [digitsAShortcuts, digitsAFrom, digitsATo],
+  );
+  const digitsC = useMemo(
+    () => effectiveDigits(digitsCShortcuts, digitsCFrom, digitsCTo),
+    [digitsCShortcuts, digitsCFrom, digitsCTo],
+  );
+
+  const dMin = parseIntSafe(limitDMin, 0);
+  const dMax = parseIntSafe(limitDMax, 100);
+
+  const effectiveCount = useMemo(() => {
+    if (countMode === 'count') return parseIntSafe(problemCount, 64);
+    return parseIntSafe(days, 1) * problemsPerDay;
+  }, [countMode, problemCount, days]);
+
   const problemMetrics = getProblemPageMetrics(columns, fontSize);
   const answerMetrics = getAnswerPageMetrics();
   const problemPages: ProblemItem[][] = chunkItems<ProblemItem>(problems, problemMetrics.itemsPerPage);
-  const answerPages: ProblemItem[][] = includeAnswerPage ? chunkItems<ProblemItem>(problems, answerMetrics.itemsPerPage) : [];
+  const answerPages: ProblemItem[][] = includeAnswerPage
+    ? chunkItems<ProblemItem>(problems, answerMetrics.itemsPerPage)
+    : [];
   const previewProblems: ProblemItem[] = problemPages[0] ?? [];
+
+  // --- scale effects ---
 
   useEffect(() => {
     const updatePaperScale = () => {
-      if (!outerContainerRef.current) {
-        return;
-      }
-
+      if (!outerContainerRef.current) return;
       const a4WidthPx = 794;
       const a4HeightPx = 1123;
       const styles = window.getComputedStyle(outerContainerRef.current);
@@ -150,60 +240,36 @@ export default function App() {
       const widthScale = availableWidth / a4WidthPx;
       const heightScale = availableHeight / a4HeightPx;
       const nextScale = Math.min(1, widthScale, heightScale);
-
       setPaperScale(Number.isFinite(nextScale) && nextScale > 0 ? nextScale : 1);
     };
-
-    if (!showPreview) {
-      return;
-    }
-
+    if (!showPreview) return;
     updatePaperScale();
     window.addEventListener('resize', updatePaperScale);
-
     return () => window.removeEventListener('resize', updatePaperScale);
   }, [showPreview]);
 
   useEffect(() => {
-    if (!showPreview || !previewContainerRef.current || !previewContentRef.current) {
-      return;
-    }
-
+    if (!showPreview || !previewContainerRef.current || !previewContentRef.current) return;
     setPreviewScale(1);
-
     const timer = window.setTimeout(() => {
-      if (!previewContainerRef.current || !previewContentRef.current) {
-        return;
-      }
-
+      if (!previewContainerRef.current || !previewContentRef.current) return;
       const containerHeight = previewContainerRef.current.clientHeight;
       const contentHeight = previewContentRef.current.scrollHeight;
-
       if (contentHeight > containerHeight) {
         setPreviewScale(containerHeight / contentHeight);
       }
     }, 0);
-
     return () => window.clearTimeout(timer);
   }, [showPreview, columns, fontSize, previewProblems.length, problems.length]);
+
+  // --- actions ---
 
   const toggleArrayItem = <T,>(arr: T[], setArr: (next: T[]) => void, item: T) => {
     if (arr.includes(item)) {
       setArr(arr.filter((currentItem) => currentItem !== item));
       return;
     }
-
     setArr([...arr, item]);
-  };
-
-  const generateNum = (length: number) => {
-    if (length === 1) {
-      return Math.floor(Math.random() * 9) + 1;
-    }
-
-    const min = Math.pow(10, length - 1);
-    const max = Math.pow(10, length) - 1;
-    return Math.floor(Math.random() * (max - min + 1)) + min;
   };
 
   const generateProblems = () => {
@@ -214,38 +280,67 @@ export default function App() {
       return;
     }
 
-    if (!limitD || limitD < 1) {
-      setError('请输入有效的答案上限 D（大于 0）。');
+    if (dMin >= dMax) {
+      setError('答案下限 D 必须小于上限。');
       return;
     }
 
-    if (!problemCount || problemCount < 1 || problemCount > maxProblemCount) {
+    if (!effectiveCount || effectiveCount < 1 || effectiveCount > maxProblemCount) {
       setError(`请输入 1 到 ${maxProblemCount} 之间的出题数量。`);
       return;
     }
 
-    const minA = Math.pow(10, Math.min(...digitsA) - 1);
-    const maxA = Math.pow(10, Math.max(...digitsA)) - 1;
-    const minC = Math.pow(10, Math.min(...digitsC) - 1);
-    const maxC = Math.pow(10, Math.max(...digitsC)) - 1;
+    const rangeA = overallValueRange(digitsA);
+    const rangeC = overallValueRange(digitsC);
+    if (!rangeA || !rangeC) {
+      setError('内部错误：无法计算数值范围。');
+      return;
+    }
 
+    // Quick feasibility check
     let possible = false;
-
-    if (operators.includes('+') && minA + minC <= limitD) possible = true;
-    if (operators.includes('-') && maxA >= minC) possible = true;
-    if (operators.includes('×') && minA * minC <= limitD) possible = true;
-    if (operators.includes('÷') && Math.floor(minA / maxC) <= limitD) possible = true;
+    if (operators.includes('+')) {
+      // A + C can hit D range?
+      if (rangeA.min + rangeC.min <= dMax && rangeA.max + rangeC.max >= dMin) possible = true;
+    }
+    if (operators.includes('-')) {
+      if (rangeA.min - rangeC.max <= dMax && rangeA.max - rangeC.min >= dMin) possible = true;
+    }
+    if (operators.includes('×')) {
+      // Check corners
+      const products = [
+        rangeA.min * rangeC.min,
+        rangeA.min * rangeC.max,
+        rangeA.max * rangeC.min,
+        rangeA.max * rangeC.max,
+      ];
+      const pMin = Math.min(...products);
+      const pMax = Math.max(...products);
+      if (pMin <= dMax && pMax >= dMin) possible = true;
+    }
+    if (operators.includes('÷') && !(rangeC.min <= 0 && rangeC.max >= 0)) {
+      // C ≠ 0 requirement; check if any quotient falls in range
+      const quotients = [
+        rangeA.min / (rangeC.min === 0 ? 1 : rangeC.min),
+        rangeA.min / (rangeC.max === 0 ? 1 : rangeC.max),
+        rangeA.max / (rangeC.min === 0 ? 1 : rangeC.min),
+        rangeA.max / (rangeC.max === 0 ? 1 : rangeC.max),
+      ];
+      const qMin = Math.min(...quotients);
+      const qMax = Math.max(...quotients);
+      if (qMin <= dMax && qMax >= dMin) possible = true;
+    }
 
     if (!possible) {
-      setError('根据当前条件无法生成题目，请调大答案上限或选择更小的位数。');
+      setError('根据当前条件无法生成题目，请调整答案范围或选择更小的位数。');
       return;
     }
 
     const nextProblems: ProblemItem[] = [];
     let attempts = 0;
-    const maxAttempts = Math.max(problemCount * 200, 50000);
+    const maxAttempts = Math.max(effectiveCount * 200, 50000);
 
-    while (nextProblems.length < problemCount && attempts < maxAttempts) {
+    while (nextProblems.length < effectiveCount && attempts < maxAttempts) {
       attempts++;
 
       const operator = operators[Math.floor(Math.random() * operators.length)];
@@ -258,56 +353,71 @@ export default function App() {
 
       if (operator === '÷') {
         right = generateNum(lengthC);
-        const minALength = Math.pow(10, lengthA - 1);
-        const maxALength = Math.pow(10, lengthA) - 1;
-        const minAnswer = Math.ceil(minALength / right);
-        const maxAnswer = Math.floor(maxALength / right);
-        const actualMaxAnswer = Math.min(maxAnswer, limitD);
+        if (right === 0) continue; // skip division by zero
+        const vrA = digitValueRange(lengthA);
+        const minAVal = vrA.min;
+        const maxAVal = vrA.max;
+        // A = right * answer, answer ∈ [dMin, dMax]
+        // So A must be in [right * dMin, right * dMax] (order depends on sign of right)
+        const a1 = right * dMin;
+        const a2 = right * dMax;
+        const neededMinA = Math.min(a1, a2);
+        const neededMaxA = Math.max(a1, a2);
+        const actualMinA = Math.max(minAVal, neededMinA);
+        const actualMaxA = Math.min(maxAVal, neededMaxA);
+        if (actualMinA > actualMaxA) continue;
 
-        if (minAnswer > actualMaxAnswer) {
-          continue;
+        // Sample answer (D) first
+        const ansMin = Math.ceil(actualMinA / right);
+        const ansMax = Math.floor(actualMaxA / right);
+        if (right < 0) {
+          // swap since dividing by negative flips
+          const realMin = Math.min(ansMin, ansMax);
+          const realMax = Math.max(ansMin, ansMax);
+          if (realMin > realMax) continue;
+          answer = Math.floor(Math.random() * (realMax - realMin + 1)) + realMin;
+        } else {
+          if (ansMin > ansMax) continue;
+          answer = Math.floor(Math.random() * (ansMax - ansMin + 1)) + ansMin;
         }
-
-        answer = Math.floor(Math.random() * (actualMaxAnswer - minAnswer + 1)) + minAnswer;
         left = right * answer;
       } else if (operator === '-') {
         right = generateNum(lengthC);
-        const minALength = Math.pow(10, lengthA - 1);
-        const maxALength = Math.pow(10, lengthA) - 1;
-        const minAnswer = Math.max(0, minALength - right);
-        const maxAnswer = Math.min(limitD, maxALength - right);
-
-        if (minAnswer > maxAnswer) {
-          continue;
-        }
-
-        answer = Math.floor(Math.random() * (maxAnswer - minAnswer + 1)) + minAnswer;
-        left = right + answer;
+        const vrA = digitValueRange(lengthA);
+        // D = A - C, A = D + right
+        const neededMinA = dMin + right;
+        const neededMaxA = dMax + right;
+        const actualMinA = Math.max(vrA.min, neededMinA);
+        const actualMaxA = Math.min(vrA.max, neededMaxA);
+        if (actualMinA > actualMaxA) continue;
+        left = Math.floor(Math.random() * (actualMaxA - actualMinA + 1)) + actualMinA;
+        answer = left - right;
       } else if (operator === '+') {
         right = generateNum(lengthC);
-        const minALength = Math.pow(10, lengthA - 1);
-        const maxALength = Math.pow(10, lengthA) - 1;
-        const minAnswer = minALength + right;
-        const maxAnswer = Math.min(limitD, maxALength + right);
-
-        if (minAnswer > maxAnswer) {
-          continue;
-        }
-
-        answer = Math.floor(Math.random() * (maxAnswer - minAnswer + 1)) + minAnswer;
-        left = answer - right;
+        const vrA = digitValueRange(lengthA);
+        // D = A + C, A = D - right
+        const neededMinA = dMin - right;
+        const neededMaxA = dMax - right;
+        const actualMinA = Math.max(vrA.min, neededMinA);
+        const actualMaxA = Math.min(vrA.max, neededMaxA);
+        if (actualMinA > actualMaxA) continue;
+        left = Math.floor(Math.random() * (actualMaxA - actualMinA + 1)) + actualMinA;
+        answer = left + right;
       } else if (operator === '×') {
         right = generateNum(lengthC);
-        const minALength = Math.pow(10, lengthA - 1);
-        const maxALength = Math.pow(10, lengthA) - 1;
-        const maxAValue = Math.min(maxALength, Math.floor(limitD / right));
-
-        if (minALength > maxAValue) {
-          continue;
-        }
-
-        left = Math.floor(Math.random() * (maxAValue - minALength + 1)) + minALength;
+        const vrA = digitValueRange(lengthA);
+        // D = A * C, A = D / right (must be integer)
+        if (right === 0) continue;
+        const a1 = dMin / right;
+        const a2 = dMax / right;
+        const neededMinA = Math.ceil(Math.min(a1, a2));
+        const neededMaxA = Math.floor(Math.max(a1, a2));
+        const actualMinA = Math.max(vrA.min, neededMinA);
+        const actualMaxA = Math.min(vrA.max, neededMaxA);
+        if (actualMinA > actualMaxA) continue;
+        left = Math.floor(Math.random() * (actualMaxA - actualMinA + 1)) + actualMinA;
         answer = left * right;
+        if (answer < dMin || answer > dMax) continue;
       } else {
         continue;
       }
@@ -332,7 +442,7 @@ export default function App() {
       }
     }
 
-    if (nextProblems.length < problemCount) {
+    if (nextProblems.length < effectiveCount) {
       setError(`当前条件比较严格，只生成了 ${nextProblems.length} 道题。`);
     }
 
@@ -342,7 +452,6 @@ export default function App() {
 
   const handlePrint = () => {
     const printWindow = window.open('', '_blank');
-
     if (!printWindow) {
       setError('请允许浏览器弹出新窗口后再打印。');
       return;
@@ -419,119 +528,57 @@ export default function App() {
               size: A4;
               margin: 12mm 15mm;
             }
-
-            * {
-              box-sizing: border-box;
-              margin: 0;
-              padding: 0;
-            }
-
+            * { box-sizing: border-box; margin: 0; padding: 0; }
             body {
               font-family: "Nunito", "Comic Sans MS", "Chalkboard SE", sans-serif;
               color: #000;
               -webkit-print-color-adjust: exact;
               print-color-adjust: exact;
             }
-
             .page {
-              width: 180mm;
-              min-height: 273mm;
-              margin: 0 auto;
-              break-after: page;
-              page-break-after: always;
+              width: 180mm; min-height: 273mm; margin: 0 auto;
+              break-after: page; page-break-after: always;
             }
-
-            .page:last-child {
-              break-after: auto;
-              page-break-after: auto;
-            }
-
-            .answer-page {
-              break-before: page;
-              page-break-before: always;
-            }
-
-            .header {
-              text-align: center;
-              margin-bottom: 4mm;
-            }
-
-            .title {
-              font-size: 7mm;
-              font-weight: bold;
-              letter-spacing: 1mm;
-            }
-
+            .page:last-child { break-after: auto; page-break-after: auto; }
+            .answer-page { break-before: page; page-break-before: always; }
+            .header { text-align: center; margin-bottom: 4mm; }
+            .title { font-size: 7mm; font-weight: bold; letter-spacing: 1mm; }
             .info-row {
-              display: flex;
-              justify-content: space-between;
-              margin-top: 4mm;
-              font-size: 4mm;
-              border-bottom: 0.5mm solid #000;
-              padding-bottom: 2mm;
+              display: flex; justify-content: space-between;
+              margin-top: 4mm; font-size: 4mm;
+              border-bottom: 0.5mm solid #000; padding-bottom: 2mm;
             }
-
-            .answer-info-row {
-              gap: 6mm;
-            }
-
+            .answer-info-row { gap: 6mm; }
             .problem-grid {
-              display: grid;
-              grid-template-columns: repeat(${columns}, 1fr);
+              display: grid; grid-template-columns: repeat(${columns}, 1fr);
               column-gap: ${problemMetrics.columnGapMm}mm;
-              row-gap: ${problemMetrics.rowGapMm}mm;
-              margin-top: 4mm;
+              row-gap: ${problemMetrics.rowGapMm}mm; margin-top: 4mm;
             }
-
             .problem-item {
               font-size: ${problemMetrics.fontSizeMm}mm;
-              display: flex;
-              align-items: center;
-              line-height: 1.3;
-              break-inside: avoid;
+              display: flex; align-items: center; line-height: 1.3; break-inside: avoid;
             }
-
             .answer-grid {
-              display: grid;
-              grid-template-columns: repeat(${answerMetrics.columns}, 1fr);
-              column-gap: 8mm;
-              row-gap: ${answerMetrics.rowGapMm}mm;
-              margin-top: 4mm;
+              display: grid; grid-template-columns: repeat(${answerMetrics.columns}, 1fr);
+              column-gap: 8mm; row-gap: ${answerMetrics.rowGapMm}mm; margin-top: 4mm;
             }
-
             .answer-item {
               font-size: ${answerMetrics.fontSizeMm}mm;
-              display: flex;
-              align-items: center;
-              line-height: 1.45;
-              break-inside: avoid;
+              display: flex; align-items: center; line-height: 1.45; break-inside: avoid;
             }
-
             .index {
-              width: 2.8em;
-              text-align: right;
-              margin-right: 0.5em;
-              color: #666;
-              flex-shrink: 0;
+              width: 2.8em; text-align: right; margin-right: 0.5em;
+              color: #666; flex-shrink: 0;
             }
-
             .equation {
               font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-              white-space: nowrap;
-              letter-spacing: 0.5mm;
+              white-space: nowrap; letter-spacing: 0.5mm;
             }
-
             @media screen {
-              body {
-                background: #f5f5f5;
-                padding: 20px;
-              }
-
+              body { background: #f5f5f5; padding: 20px; }
               .page {
-                background: white;
-                padding: 12mm 15mm;
-                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
-                margin-bottom: 20px;
+                background: white; padding: 12mm 15mm;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.15); margin-bottom: 20px;
               }
             }
           </style>
@@ -540,9 +587,7 @@ export default function App() {
           ${problemPagesHtml}
           ${answerPagesHtml}
           <script>
-            window.onload = () => {
-              setTimeout(() => window.print(), 400);
-            };
+            window.onload = () => { setTimeout(() => window.print(), 400); };
           </script>
         </body>
       </html>
@@ -552,6 +597,8 @@ export default function App() {
     printWindow.document.write(html);
     printWindow.document.close();
   };
+
+  /* ---------- render ---------- */
 
   return (
     <div className="min-h-screen p-3 sm:p-4 md:p-8 font-sans">
@@ -569,17 +616,14 @@ export default function App() {
             <div className="flex-shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-2xl bg-amber-100 text-amber-600 shadow-sm">
               <Lightbulb className="w-5 h-5" />
             </div>
-
             <div className="min-w-0 flex-1 space-y-3">
               <div>
                 <p className="text-xs sm:text-sm font-semibold tracking-[0.18em] text-amber-600 uppercase">首次使用说明</p>
                 <h2 className="text-lg sm:text-xl font-bold text-gray-800 mt-1">先理解这条规则：A 运算 C = D</h2>
               </div>
-
               <p className="text-sm sm:text-base text-gray-600 leading-6">
-                A 是左边的数字，C 是右边的数字，D 是答案。你先决定 A 和 C 要有几位数，再选择运算符号，并限制 D 的最大值，系统就会自动生成满足条件的题目。
+                A 是左边的数字，C 是右边的数字，D 是答案。你先决定 A 和 C 要有几位数，再选择运算符号，并限制 D 的范围，系统就会自动生成满足条件的题目。
               </p>
-
               <div className="grid gap-2 sm:grid-cols-2">
                 {conceptTips.map((tip) => (
                   <div key={tip.label} className="rounded-2xl border border-white/80 bg-white/70 px-3 py-3 shadow-sm">
@@ -592,10 +636,9 @@ export default function App() {
                   </div>
                 ))}
               </div>
-
               <div className="rounded-2xl border border-blue-100 bg-blue-50/90 px-3 py-3 sm:px-4">
                 <p className="text-sm sm:text-base text-blue-900 leading-6">
-                  例如：A 选 <span className="font-bold">2 位数</span>，运算选 <span className="font-bold">+</span>，C 选 <span className="font-bold">1 位数</span>，并设置 <span className="font-bold">D ≤ 100</span>，系统就会生成类似
+                  例如：A 选 <span className="font-bold">2 位数</span>，运算选 <span className="font-bold">+</span>，C 选 <span className="font-bold">1 位数</span>，并设置 <span className="font-bold">D ∈ [0, 100]</span>，系统就会生成类似
                   <span className="mx-1 inline-block rounded-md bg-white px-2 py-0.5 font-mono text-blue-700 shadow-sm">34 + 5 =</span>
                   这样的题目。
                 </p>
@@ -609,20 +652,50 @@ export default function App() {
           <div className="absolute bottom-0 left-0 w-40 h-40 bg-purple-400/10 rounded-full blur-3xl -ml-10 -mb-10 pointer-events-none"></div>
 
           <div className="space-y-6 sm:space-y-8 relative z-10">
+            {/* ---- A ---- */}
             <div>
               <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-3 flex items-center">
                 <span className="bg-blue-100 text-blue-600 w-8 h-8 rounded-lg flex items-center justify-center mr-2">A</span>
                 数字 A 的位数
               </h2>
               <div className="flex flex-wrap gap-2 sm:gap-3">
-                {digitOptions.map((num) => (
-                  <ToggleButton key={`a-${num}`} active={digitsA.includes(num)} onClick={() => toggleArrayItem(digitsA, setDigitsA, num)}>
+                {digitShortcuts.map((num) => (
+                  <ToggleButton
+                    key={`a-${num}`}
+                    active={digitsAShortcuts.includes(num)}
+                    onClick={() => toggleArrayItem(digitsAShortcuts, setDigitsAShortcuts, num)}
+                  >
                     {num} 位数
                   </ToggleButton>
                 ))}
               </div>
+              <div className="mt-3 flex items-center gap-2 flex-wrap">
+                <span className="text-sm text-gray-500 font-medium">手动范围:</span>
+                <input
+                  type="number"
+                  value={digitsAFrom}
+                  onChange={(e) => setDigitsAFrom(e.target.value)}
+                  placeholder="最小位数"
+                  className="w-24 px-3 py-2 rounded-xl bg-white/60 border border-white/60 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm font-bold text-gray-700"
+                />
+                <span className="text-gray-400">~</span>
+                <input
+                  type="number"
+                  value={digitsATo}
+                  onChange={(e) => setDigitsATo(e.target.value)}
+                  placeholder="最大位数"
+                  className="w-24 px-3 py-2 rounded-xl bg-white/60 border border-white/60 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm font-bold text-gray-700"
+                />
+                <span className="text-xs text-gray-400">（负数=负几位数）</span>
+              </div>
+              {digitsA.length > 0 && (
+                <p className="mt-1 text-xs text-gray-400">
+                  当前: {digitsA.map(d => `${d > 0 ? '' : '负'}${Math.abs(d)}位数`).join('、')}
+                </p>
+              )}
             </div>
 
+            {/* ---- 运算符 ---- */}
             <div>
               <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-3 flex items-center">
                 <span className="bg-purple-100 text-purple-600 w-8 h-8 rounded-lg flex items-center justify-center mr-2">B</span>
@@ -630,59 +703,153 @@ export default function App() {
               </h2>
               <div className="flex flex-wrap gap-2 sm:gap-3">
                 {operatorOptions.map((operator) => (
-                  <ToggleButton key={`op-${operator}`} active={operators.includes(operator)} onClick={() => toggleArrayItem(operators, setOperators, operator)}>
+                  <ToggleButton
+                    key={`op-${operator}`}
+                    active={operators.includes(operator)}
+                    onClick={() => toggleArrayItem(operators, setOperators, operator)}
+                  >
                     <span className="text-xl sm:text-2xl leading-none">{operator}</span>
                   </ToggleButton>
                 ))}
               </div>
             </div>
 
+            {/* ---- C ---- */}
             <div>
               <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-3 flex items-center">
                 <span className="bg-green-100 text-green-600 w-8 h-8 rounded-lg flex items-center justify-center mr-2">C</span>
                 数字 C 的位数
               </h2>
               <div className="flex flex-wrap gap-2 sm:gap-3">
-                {digitOptions.map((num) => (
-                  <ToggleButton key={`c-${num}`} active={digitsC.includes(num)} onClick={() => toggleArrayItem(digitsC, setDigitsC, num)}>
+                {digitShortcuts.map((num) => (
+                  <ToggleButton
+                    key={`c-${num}`}
+                    active={digitsCShortcuts.includes(num)}
+                    onClick={() => toggleArrayItem(digitsCShortcuts, setDigitsCShortcuts, num)}
+                  >
                     {num} 位数
                   </ToggleButton>
                 ))}
               </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-              <div>
-                <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-3 flex items-center">
-                  <span className="bg-orange-100 text-orange-600 w-8 h-8 rounded-lg flex items-center justify-center mr-2">D</span>
-                  答案上限 D（≤）
-                </h2>
+              <div className="mt-3 flex items-center gap-2 flex-wrap">
+                <span className="text-sm text-gray-500 font-medium">手动范围:</span>
                 <input
                   type="number"
-                  value={limitD}
-                  onChange={(event) => setLimitD(parseInt(event.target.value, 10) || 0)}
-                  className="w-full px-4 py-3 rounded-xl bg-white/60 border border-white/60 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400 text-lg sm:text-xl font-bold text-gray-700"
-                  min="1"
+                  value={digitsCFrom}
+                  onChange={(e) => setDigitsCFrom(e.target.value)}
+                  placeholder="最小位数"
+                  className="w-24 px-3 py-2 rounded-xl bg-white/60 border border-white/60 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm font-bold text-gray-700"
                 />
-              </div>
-
-              <div>
-                <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-3 flex items-center">
-                  <span className="bg-pink-100 text-pink-600 w-8 h-8 rounded-lg flex items-center justify-center mr-2">E</span>
-                  出题数量
-                </h2>
+                <span className="text-gray-400">~</span>
                 <input
                   type="number"
-                  value={problemCount}
-                  onChange={(event) => setProblemCount(parseInt(event.target.value, 10) || 0)}
-                  className="w-full px-4 py-3 rounded-xl bg-white/60 border border-white/60 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400 text-lg sm:text-xl font-bold text-gray-700"
-                  min="1"
-                  max={maxProblemCount}
+                  value={digitsCTo}
+                  onChange={(e) => setDigitsCTo(e.target.value)}
+                  placeholder="最大位数"
+                  className="w-24 px-3 py-2 rounded-xl bg-white/60 border border-white/60 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm font-bold text-gray-700"
                 />
-                <p className="mt-2 text-sm text-gray-500">支持 1 到 {maxProblemCount} 题，系统会按页自动拆分打印。</p>
+                <span className="text-xs text-gray-400">（负数=负几位数）</span>
               </div>
+              {digitsC.length > 0 && (
+                <p className="mt-1 text-xs text-gray-400">
+                  当前: {digitsC.map(d => `${d > 0 ? '' : '负'}${Math.abs(d)}位数`).join('、')}
+                </p>
+              )}
             </div>
 
+            {/* ---- D 范围 ---- */}
+            <div>
+              <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-3 flex items-center">
+                <span className="bg-orange-100 text-orange-600 w-8 h-8 rounded-lg flex items-center justify-center mr-2">D</span>
+                答案 D 的范围
+              </h2>
+              <div className="flex items-center gap-2 flex-wrap">
+                <input
+                  type="number"
+                  value={limitDMin}
+                  onChange={(e) => setLimitDMin(e.target.value)}
+                  placeholder="下限"
+                  className="w-28 px-4 py-3 rounded-xl bg-white/60 border border-white/60 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400 text-lg sm:text-xl font-bold text-gray-700"
+                />
+                <span className="text-gray-500 font-bold text-lg">≤ D ≤</span>
+                <input
+                  type="number"
+                  value={limitDMax}
+                  onChange={(e) => setLimitDMax(e.target.value)}
+                  placeholder="上限"
+                  className="w-28 px-4 py-3 rounded-xl bg-white/60 border border-white/60 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400 text-lg sm:text-xl font-bold text-gray-700"
+                />
+              </div>
+              <p className="mt-1 text-xs text-gray-400">支持负数，下限必须小于上限</p>
+            </div>
+
+            {/* ---- 出题数量 ---- */}
+            <div>
+              <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-3 flex items-center">
+                <span className="bg-pink-100 text-pink-600 w-8 h-8 rounded-lg flex items-center justify-center mr-2">E</span>
+                出题数量
+              </h2>
+
+              {/* mode toggle */}
+              <div className="flex bg-gray-100 p-0.5 rounded-lg gap-0.5 w-fit mb-3">
+                <button
+                  onClick={() => setCountMode('count')}
+                  className={cn(
+                    'px-4 py-2 rounded-md font-bold transition-colors text-sm',
+                    countMode === 'count'
+                      ? 'bg-white text-blue-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900',
+                  )}
+                >
+                  题目数量
+                </button>
+                <button
+                  onClick={() => setCountMode('days')}
+                  className={cn(
+                    'px-4 py-2 rounded-md font-bold transition-colors text-sm',
+                    countMode === 'days'
+                      ? 'bg-white text-blue-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900',
+                  )}
+                >
+                  练习天数
+                </button>
+              </div>
+
+              {countMode === 'count' ? (
+                <div>
+                  <input
+                    type="number"
+                    value={problemCount}
+                    onChange={(e) => setProblemCount(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl bg-white/60 border border-white/60 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400 text-lg sm:text-xl font-bold text-gray-700"
+                    placeholder="64"
+                    min="1"
+                    max={maxProblemCount}
+                  />
+                  <p className="mt-2 text-sm text-gray-500">支持 1 到 {maxProblemCount} 题，系统会按页自动拆分打印。</p>
+                </div>
+              ) : (
+                <div>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="number"
+                      value={days}
+                      onChange={(e) => setDays(e.target.value)}
+                      className="w-28 px-4 py-3 rounded-xl bg-white/60 border border-white/60 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400 text-lg sm:text-xl font-bold text-gray-700"
+                      placeholder="1"
+                      min="1"
+                    />
+                    <span className="text-gray-600 font-bold">天</span>
+                    <span className="text-gray-400">× {problemsPerDay} 题/天</span>
+                    <span className="text-blue-600 font-bold">= {effectiveCount} 题</span>
+                  </div>
+                  <p className="mt-2 text-sm text-gray-500">每天 {problemsPerDay} 题，共 {effectiveCount} 题（上限 {maxProblemCount} 题）。</p>
+                </div>
+              )}
+            </div>
+
+            {/* ---- 打印设置 ---- */}
             <div>
               <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-3 flex items-center">
                 <span className="bg-teal-100 text-teal-600 w-8 h-8 rounded-lg flex items-center justify-center mr-2">F</span>
@@ -722,6 +889,7 @@ export default function App() {
         </div>
       </div>
 
+      {/* ---- preview modal ---- */}
       {showPreview && (
         <div className="no-print fixed inset-0 z-50 flex items-stretch sm:items-center justify-center p-0 sm:p-4 bg-gray-900/40 backdrop-blur-sm">
           <div className="bg-white rounded-none sm:rounded-3xl shadow-2xl w-full h-[100dvh] sm:h-auto max-w-5xl sm:max-h-[95vh] flex flex-col overflow-hidden">
@@ -733,7 +901,6 @@ export default function App() {
                   {includeAnswerPage ? `，答案页 ${Math.max(answerPages.length, 1)} 页（独立分页）` : '，未打印答案页'}
                 </p>
               </div>
-
               <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto sm:justify-end">
                 <button
                   onClick={handlePrint}
