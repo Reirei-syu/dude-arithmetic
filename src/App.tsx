@@ -10,6 +10,8 @@ import { cn } from './lib/utils';
 type ProblemItem = {
   answer: number;
   id: number;
+  displayId: number;
+  dayIndex: number;
   left: number;
   operator: string;
   right: number;
@@ -143,11 +145,14 @@ function getAnswerPageMetrics() {
   return { columns, fontSizeMm, itemsPerPage: rowsPerPage * columns, rowGapMm };
 }
 
-function formatExpression(problem: ProblemItem) {
+function formatExpression(problem: ProblemItem, showDay: boolean = false) {
+  const prefix = showDay && problem.dayIndex > 0
+    ? `第${problem.dayIndex + 1}天-${problem.displayId}`
+    : String(problem.displayId);
   return `${problem.left} ${problem.operator} ${problem.right} = `;
 }
 
-function formatAnswer(problem: ProblemItem) {
+function formatAnswer(problem: ProblemItem, showDay: boolean = false) {
   return `${problem.left} ${problem.operator} ${problem.right} = ${problem.answer}`;
 }
 
@@ -156,7 +161,7 @@ function formatAnswer(problem: ProblemItem) {
 export default function App() {
   // --- A ---
   const [aMode, setAMode] = useState<'shortcut' | 'manual'>('shortcut');
-  const [digitsAShortcuts, setDigitsAShortcuts] = useState<number[]>([1, 2]);
+  const [digitsAShortcuts, setDigitsAShortcuts] = useState<number[]>([1]);
   const [aValueFrom, setAValueFrom] = useState('');
   const [aValueTo, setAValueTo] = useState('');
 
@@ -165,7 +170,7 @@ export default function App() {
 
   // --- C ---
   const [cMode, setCMode] = useState<'shortcut' | 'manual'>('shortcut');
-  const [digitsCShortcuts, setDigitsCShortcuts] = useState<number[]>([1, 2]);
+  const [digitsCShortcuts, setDigitsCShortcuts] = useState<number[]>([1]);
   const [cValueFrom, setCValueFrom] = useState('');
   const [cValueTo, setCValueTo] = useState('');
 
@@ -294,7 +299,7 @@ export default function App() {
     return generateNumByDigits(len);
   };
 
-  const generateOneBatch = (startId: number): ProblemItem[] => {
+  const generateOneBatch = (displayStartId: number, dayIndex: number): ProblemItem[] => {
     const batchProblems: ProblemItem[] = [];
     let attempts = 0;
     const maxAttempts = Math.max(batchSize * 500, 50000);
@@ -312,7 +317,6 @@ export default function App() {
 
       if (operator === '÷') {
         if (right === 0) continue;
-        // A = right * answer, answer ∈ [dMin, dMax]
         const a1 = right * dMin;
         const a2 = right * dMax;
         const neededMinA = Math.min(a1, a2);
@@ -320,7 +324,6 @@ export default function App() {
         const actualMinA = Math.max(vrA.min, neededMinA);
         const actualMaxA = Math.min(vrA.max, neededMaxA);
         if (actualMinA > actualMaxA) continue;
-        // Pick answer first
         const ansMin = Math.ceil(actualMinA / right);
         const ansMax = Math.floor(actualMaxA / right);
         const lo = right < 0 ? Math.min(ansMin, ansMax) : ansMin;
@@ -362,7 +365,9 @@ export default function App() {
 
       const problem: ProblemItem = {
         answer,
-        id: startId + batchProblems.length,
+        dayIndex,
+        displayId: displayStartId + batchProblems.length,
+        id: dayIndex * maxProblemsPerBatch + displayStartId + batchProblems.length,
         left,
         operator,
         right,
@@ -441,17 +446,10 @@ export default function App() {
 
     // Generate batches
     const allProblems: ProblemItem[] = [];
-    let nextId = 1;
 
     for (let b = 0; b < batchCount; b++) {
-      const batch = generateOneBatch(nextId);
+      const batch = generateOneBatch(1, b);
       allProblems.push(...batch);
-      nextId += batchSize;
-      // Re-index to ensure continuous IDs
-      for (let i = 0; i < allProblems.length; i++) {
-        allProblems[i].id = i + 1;
-      }
-      nextId = allProblems.length + 1;
     }
 
     if (allProblems.length < batchSize * batchCount) {
@@ -488,7 +486,7 @@ export default function App() {
                 .map(
                   (p: ProblemItem) => `
                     <div class="problem-item">
-                      <span class="index">(${p.id})</span>
+                      <span class="index">(${p.displayId})</span>
                       <span class="equation">${formatExpression(p)}</span>
                     </div>
                   `,
@@ -517,7 +515,7 @@ export default function App() {
                     .map(
                       (p: ProblemItem) => `
                         <div class="answer-item">
-                          <span class="index">(${p.id})</span>
+                          <span class="index">(${p.displayId})</span>
                           <span class="equation">${formatAnswer(p)}</span>
                         </div>
                       `,
@@ -997,7 +995,7 @@ body{font-family:"Nunito","Comic Sans MS","Chalkboard SE",sans-serif;color:#000;
                         {previewProblems.map((problem) => (
                           <div key={problem.id} className="font-mono flex items-center" style={{ fontSize: `${fontSize}px`, lineHeight: 1.2 }}>
                             <span className="text-right text-gray-400 font-sans" style={{ width: '2.5em', marginRight: '0.5em', fontSize: '0.8em' }}>
-                              ({problem.id})
+                              ({problem.displayId})
                             </span>
                             <span className="tracking-widest">{formatExpression(problem)}</span>
                           </div>
