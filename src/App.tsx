@@ -210,8 +210,10 @@ export default function App() {
   const [funCTo, setFunCTo] = useState('20');
   const [funBFrom, setFunBFrom] = useState('1');
   const [funBTo, setFunBTo] = useState('10');
-  const [funOp1, setFunOp1] = useState('+');
-  const [funOp2, setFunOp2] = useState('×');
+  const [funOp1s, setFunOp1s] = useState<string[]>(['+']);
+  const [funOp2s, setFunOp2s] = useState<string[]>(['×']);
+  const [funAllowNegative, setFunAllowNegative] = useState(false);
+  const [funCompareOps, setFunCompareOps] = useState<string[]>(['+', '-', '×']);
   const [funCount, setFunCount] = useState('24');
   const [funIncludeAnswer, setFunIncludeAnswer] = useState(false);
 
@@ -285,8 +287,10 @@ export default function App() {
       if (c.funCTo !== undefined) setFunCTo(c.funCTo);
       if (c.funBFrom !== undefined) setFunBFrom(c.funBFrom);
       if (c.funBTo !== undefined) setFunBTo(c.funBTo);
-      if (c.funOp1) setFunOp1(c.funOp1);
-      if (c.funOp2) setFunOp2(c.funOp2);
+      if (c.funOp1s) setFunOp1s(c.funOp1s);
+      if (c.funOp2s) setFunOp2s(c.funOp2s);
+      if (c.funAllowNegative !== undefined) setFunAllowNegative(c.funAllowNegative);
+      if (c.funCompareOps) setFunCompareOps(c.funCompareOps);
       if (c.funCount !== undefined) setFunCount(c.funCount);
       if (c.funIncludeAnswer !== undefined) setFunIncludeAnswer(c.funIncludeAnswer);
       if (c.columns) setColumns(c.columns);
@@ -303,11 +307,11 @@ export default function App() {
         cMode, digitsCShortcuts, cValueFrom, cValueTo,
         limitDMin, limitDMax, countMode, problemCount, days,
         includeAnswerPage, allowRemainder,
-        funType, funAFrom, funATo, funCFrom, funCTo, funBFrom, funBTo, funOp1, funOp2, funCount, funIncludeAnswer,
+        funType, funAFrom, funATo, funCFrom, funCTo, funBFrom, funBTo, funOp1s, funOp2s, funAllowNegative, funCompareOps, funCount, funIncludeAnswer,
         columns, fontSize,
       }));
     } catch { /* quota exceeded */ }
-  }, [aMode, digitsAShortcuts, aValueFrom, aValueTo, operators, cMode, digitsCShortcuts, cValueFrom, cValueTo, limitDMin, limitDMax, countMode, problemCount, days, includeAnswerPage, allowRemainder, funType, funAFrom, funATo, funCFrom, funCTo, funBFrom, funBTo, funOp1, funOp2, funCount, funIncludeAnswer, columns, fontSize]);
+  }, [aMode, digitsAShortcuts, aValueFrom, aValueTo, operators, cMode, digitsCShortcuts, cValueFrom, cValueTo, limitDMin, limitDMax, countMode, problemCount, days, includeAnswerPage, allowRemainder, funType, funAFrom, funATo, funCFrom, funCTo, funBFrom, funBTo, funOp1s, funOp2s, funAllowNegative, funCompareOps, funCount, funIncludeAnswer, columns, fontSize]);
 
   /* ---------- scale effects ---------- */
   useEffect(() => {
@@ -510,8 +514,14 @@ export default function App() {
       attempts++;
 
       if (funType === 'guess-op') {
-        const a = randomInRange(rA.min, rA.max);
-        const c = randomInRange(rC.min, rC.max);
+        let a = randomInRange(rA.min, rA.max);
+        let c = randomInRange(rC.min, rC.max);
+        if (c === 0) continue;
+        if (funAllowNegative) {
+          if (Math.random() < 0.5) a = -a;
+          if (Math.random() < 0.5 && c !== 0) c = -c;
+        }
+        // exclude ÷ by 0 after negating
         if (c === 0) continue;
         const op = operatorOptions[Math.floor(Math.random() * operatorOptions.length)];
         const ans = computeAnswer(a, op, c);
@@ -528,33 +538,36 @@ export default function App() {
           hint: `${a} ${op} ${c} = ${ans}`,
         });
       } else if (funType === 'mixed') {
+        if (funOp1s.length === 0 || funOp2s.length === 0) { setError('请至少各选一个运算符号。'); return; }
         const a = randomInRange(rA.min, rA.max);
         const b = randomInRange(rB!.min, rB!.max);
         const c = randomInRange(rC.min, rC.max);
-        // × ÷ before + - for display, but compute left-to-right for simplicity
-        // Actually: follow standard precedence: ×÷ first, then +-
-        const step1 = computeAnswer(b, funOp2, c);
+        const op2 = funOp2s[Math.floor(Math.random() * funOp2s.length)];
+        const op1 = funOp1s[Math.floor(Math.random() * funOp1s.length)];
+        // First compute B op2 C, then A op1 (result)
+        const step1 = computeAnswer(b, op2, c);
         if (!isFinite(step1) || !Number.isInteger(step1)) continue;
-        const ans = computeAnswer(a, funOp1, step1);
+        const ans = computeAnswer(a, op1, step1);
         if (!isFinite(ans) || !Number.isInteger(ans)) continue;
         if (ans < -99999 || ans > 99999) continue;
-        const key = `${a}|${b}|${c}|${funOp1}|${funOp2}`;
+        const key = `${a}|${b}|${c}|${op1}|${op2}`;
         if (seen.has(key)) continue;
         seen.add(key);
         result.push({
           id: result.length + 1,
           type: 'mixed',
-          expression: `${a}  ${funOp1}  ${b}  ${funOp2}  ${c}  =  ___`,
+          expression: `${a}  ${op1}  ${b}  ${op2}  ${c}  =  ___`,
           answer: String(ans),
-          hint: `${a} ${funOp1} ${b} ${funOp2} ${c} = ${ans}`,
+          hint: `${a} ${op1} ${b} ${op2} ${c} = ${ans}`,
         });
       } else if (funType === 'compare') {
+        if (funCompareOps.length === 0) { setError('请至少选择一个运算符号。'); return; }
         const a = randomInRange(rA.min, rA.max);
         const c = randomInRange(rC.min, rC.max);
-        const op = operatorOptions[Math.floor(Math.random() * operatorOptions.length)];
-        let leftVal = computeAnswer(a, op, c);
-        if (!isFinite(leftVal) || !Number.isInteger(leftVal) || c === 0) continue;
-        // generate D
+        if (c === 0) continue;
+        const op = funCompareOps[Math.floor(Math.random() * funCompareOps.length)];
+        const leftVal = computeAnswer(a, op, c);
+        if (!isFinite(leftVal) || !Number.isInteger(leftVal)) continue;
         const choice = Math.floor(Math.random() * 3);
         let dVal: number;
         let cmp: string;
@@ -863,6 +876,19 @@ export default function App() {
               ))}
             </div>
 
+            {/* per-type info tip */}
+            <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-3 py-3 sm:px-4 text-sm text-amber-900 leading-6">
+              {funType === 'guess-op' && (
+                <p><span className="font-bold">A</span>（左边数字）  <span className="font-bold">符号?</span>  <span className="font-bold">C</span>（右边数字）  =  <span className="font-bold">D</span>（结果）<br/>给出 A、C、D，猜中间的运算符号。</p>
+              )}
+              {funType === 'mixed' && (
+                <p><span className="font-bold">A</span>（第一个数）  ○  <span className="font-bold">B</span>（第二个数）  ○  <span className="font-bold">C</span>（第三个数）  =  <span className="font-bold">答案</span><br/>先算 B ○ C，再算 A ○ 结果。上下两个运算符号独立随机。</p>
+              )}
+              {funType === 'compare' && (
+                <p><span className="font-bold">A</span>（左边数字）  ○  <span className="font-bold">C</span>（右边数字）  ___  <span className="font-bold">D</span>（比较目标）<br/>先算 A ○ C，再和 D 比较大小，填 &gt;、&lt; 或 =。</p>
+              )}
+            </div>
+
             {/* fun config */}
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
@@ -883,28 +909,60 @@ export default function App() {
               </div>
             </div>
 
+            {/* guess-op: negative toggle */}
+            {funType === 'guess-op' && (
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={funAllowNegative} onChange={(e) => setFunAllowNegative(e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-500 focus:ring-blue-400" />
+                <span className="text-sm text-gray-700 font-bold">包含负数（A 和 C 随机变为负数）</span>
+              </label>
+            )}
+
+            {/* mixed: B range + operator toggles */}
             {funType === 'mixed' && (
               <>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <span className="text-sm font-bold text-gray-600">数字 B 范围</span>
-                    <div className="flex items-center gap-2 mt-1">
-                      <input type="number" value={funBFrom} onChange={(e) => setFunBFrom(e.target.value)} placeholder="1" className={bigInputClass + ' w-24 sm:w-28 text-base'} />
-                      <span className="text-gray-400">~</span>
-                      <input type="number" value={funBTo} onChange={(e) => setFunBTo(e.target.value)} placeholder="10" className={bigInputClass + ' w-24 sm:w-28 text-base'} />
-                    </div>
+                <div>
+                  <span className="text-sm font-bold text-gray-600">数字 B 范围</span>
+                  <div className="flex items-center gap-2 mt-1">
+                    <input type="number" value={funBFrom} onChange={(e) => setFunBFrom(e.target.value)} placeholder="1" className={bigInputClass + ' w-24 sm:w-28 text-base'} />
+                    <span className="text-gray-400">~</span>
+                    <input type="number" value={funBTo} onChange={(e) => setFunBTo(e.target.value)} placeholder="10" className={bigInputClass + ' w-24 sm:w-28 text-base'} />
                   </div>
-                  <div>
-                    <span className="text-sm font-bold text-gray-600">运算符号</span>
-                    <div className="flex items-center gap-2 mt-1">
-                      <select value={funOp1} onChange={(e) => setFunOp1(e.target.value)} className="px-3 py-2 rounded-xl bg-white/60 border border-white/60 font-bold text-lg">{operatorOptions.map((o) => <option key={o} value={o}>{o}</option>)}</select>
-                      <span className="text-gray-400">+</span>
-                      <select value={funOp2} onChange={(e) => setFunOp2(e.target.value)} className="px-3 py-2 rounded-xl bg-white/60 border border-white/60 font-bold text-lg">{operatorOptions.map((o) => <option key={o} value={o}>{o}</option>)}</select>
-                    </div>
-                    <p className="text-xs text-gray-400 mt-1">先算第二个符号（B ○ C），再算第一个（A ○ 结果）</p>
+                </div>
+                <div>
+                  <span className="text-sm font-bold text-gray-600">第一个符号（A ○ 结果）</span>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {operatorOptions.map((op) => (
+                      <ToggleButton key={`fun-op1-${op}`} active={funOp1s.includes(op)} onClick={() => toggleArrayItem(funOp1s, setFunOp1s, op)}>
+                        <span className="text-xl leading-none">{op}</span>
+                      </ToggleButton>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-sm font-bold text-gray-600">第二个符号（B ○ C，先算）</span>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {operatorOptions.map((op) => (
+                      <ToggleButton key={`fun-op2-${op}`} active={funOp2s.includes(op)} onClick={() => toggleArrayItem(funOp2s, setFunOp2s, op)}>
+                        <span className="text-xl leading-none">{op}</span>
+                      </ToggleButton>
+                    ))}
                   </div>
                 </div>
               </>
+            )}
+
+            {/* compare: operator toggles */}
+            {funType === 'compare' && (
+              <div>
+                <span className="text-sm font-bold text-gray-600">运算符号（可多选）</span>
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {operatorOptions.map((op) => (
+                    <ToggleButton key={`fun-cmp-${op}`} active={funCompareOps.includes(op)} onClick={() => toggleArrayItem(funCompareOps, setFunCompareOps, op)}>
+                      <span className="text-xl leading-none">{op}</span>
+                    </ToggleButton>
+                  ))}
+                </div>
+              </div>
             )}
 
             <div className="flex items-center gap-4 flex-wrap">
