@@ -1015,6 +1015,46 @@ export default function App() {
               </div>
             </div>
 
+            {previewType === 'standard' && (
+              <div className="flex flex-row flex-wrap items-center gap-3 sm:gap-4 p-3 sm:px-6 sm:py-3 border-b border-gray-100 bg-white">
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-gray-700 font-bold text-sm sm:text-base whitespace-nowrap">排版列数:</span>
+                  <div className="flex bg-gray-100 p-0.5 rounded-lg gap-0.5">
+                    {columnOptions.map((value) => (
+                      <button
+                        key={value}
+                        onClick={() => setColumns(value)}
+                        className={cn(
+                          'px-3 py-1.5 rounded-md font-medium transition-colors text-sm text-center whitespace-nowrap',
+                          columns === value ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:text-gray-900',
+                        )}
+                      >
+                        {value} 列
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="hidden sm:block w-px h-6 bg-gray-200" />
+                <div className="flex items-center gap-2 flex-wrap min-w-0">
+                  <span className="text-gray-700 font-bold text-sm sm:text-base whitespace-nowrap">字体大小:</span>
+                  <div className="flex flex-wrap max-w-full bg-gray-100 p-0.5 rounded-lg gap-0.5">
+                    {fontSizeOptions.map((value) => (
+                      <button
+                        key={value}
+                        onClick={() => setFontSize(value)}
+                        className={cn(
+                          'px-2 sm:px-3 py-1.5 rounded-md font-medium transition-colors text-xs sm:text-sm text-center',
+                          fontSize === value ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:text-gray-900',
+                        )}
+                      >
+                        {value}px
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-6 bg-gray-100 flex justify-center" ref={outerContainerRef}>
               <div style={{ width: `${794 * paperScale}px`, height: `${1123 * paperScale}px`, position: 'relative' }} className="mx-auto flex-shrink-0">
                 <div className="bg-white shadow-lg sm:shadow-md absolute top-0 left-0 origin-top-left overflow-hidden rounded-xl sm:rounded-none"
