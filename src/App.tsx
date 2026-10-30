@@ -673,17 +673,18 @@ export default function App() {
   return (
     <div className="min-h-screen p-3 sm:p-4 md:p-8 font-sans">
       <div className="no-print max-w-3xl mx-auto">
+        <nav className="tool-navigation mb-6"><a href="https://taxcalculatetools.com/">← 返回导航页</a></nav>
         {/* header */}
         <div className="text-center mb-6 sm:mb-8">
           <div className="inline-flex items-center justify-center p-3 sm:p-4 bg-white/40 backdrop-blur-md rounded-full shadow-sm mb-4">
             <Calculator className="w-8 h-8 sm:w-10 sm:h-10 text-blue-500" />
           </div>
-          <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-800 drop-shadow-sm">趣味数学题生成器</h1>
+          <h1 className="text-3xl sm:text-4xl font-semibold text-gray-800">趣味数学题生成器</h1>
           <p className="text-gray-600 mt-2 text-base sm:text-lg">轻松生成 A4 打印版加减乘除练习题</p>
         </div>
 
         {/* intro */}
-        <div className="bg-white/55 backdrop-blur-xl border border-white/70 shadow-lg rounded-2xl p-4 sm:p-5 mb-6">
+        <div className="glass-panel p-4 sm:p-5 mb-6">
           <div className="flex items-start gap-3 sm:gap-4">
             <div className="flex-shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-2xl bg-amber-100 text-amber-600 shadow-sm">
               <Lightbulb className="w-5 h-5" />
@@ -711,7 +712,7 @@ export default function App() {
         </div>
 
         {/* === STANDARD CONFIG === */}
-        <div className="bg-white/40 backdrop-blur-xl border border-white/60 shadow-xl rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 mb-8 relative overflow-hidden">
+        <div className="glass-panel p-4 sm:p-6 md:p-8 mb-8 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-blue-400/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" />
           <div className="absolute bottom-0 left-0 w-40 h-40 bg-purple-400/10 rounded-full blur-3xl -ml-10 -mb-10 pointer-events-none" />
 
@@ -854,7 +855,7 @@ export default function App() {
         </div>
 
         {/* === 更多趣味 === */}
-        <div className="bg-white/40 backdrop-blur-xl border border-white/60 shadow-xl rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 mb-8 relative overflow-hidden">
+        <div className="glass-panel p-4 sm:p-6 md:p-8 mb-8 relative overflow-hidden">
           <div className="absolute top-0 left-0 w-40 h-40 bg-amber-400/10 rounded-full blur-3xl -ml-10 -mt-10 pointer-events-none" />
           <div className="absolute bottom-0 right-0 w-32 h-32 bg-pink-400/10 rounded-full blur-3xl -mr-10 -mb-10 pointer-events-none" />
 
@@ -971,7 +972,7 @@ export default function App() {
               </label>
             </div>
 
-            <button onClick={generateFunProblems} className="w-full py-3 sm:py-3.5 bg-gradient-to-r from-amber-400 to-pink-400 hover:from-amber-500 hover:to-pink-500 text-white rounded-2xl font-bold text-lg sm:text-xl shadow-lg shadow-amber-500/20 transition-all active:scale-[0.98] flex items-center justify-center">
+            <button onClick={generateFunProblems} className="w-full py-3 sm:py-3.5 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white rounded-2xl font-bold text-lg sm:text-xl shadow-lg shadow-amber-500/20 transition-all active:scale-[0.98] flex items-center justify-center">
               <Sparkles className="w-5 h-5 mr-2" />生成趣味题目
             </button>
           </div>
@@ -981,7 +982,7 @@ export default function App() {
       {/* === PREVIEW MODAL === */}
       {showPreview && (
         <div className="no-print fixed inset-0 z-50 flex items-stretch sm:items-center justify-center p-0 sm:p-4 bg-gray-900/40 backdrop-blur-sm">
-          <div className="bg-white rounded-none sm:rounded-3xl shadow-2xl w-full h-[100dvh] sm:h-auto max-w-5xl sm:max-h-[95vh] flex flex-col overflow-hidden">
+          <div className="glass-modal rounded-none sm:rounded-3xl w-full h-[100dvh] sm:h-auto max-w-5xl sm:max-h-[95vh] flex flex-col overflow-hidden">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3 sm:p-6 border-b border-gray-100 bg-gray-50/50">
               <div>
                 <h3 className="text-xl sm:text-2xl font-bold text-gray-800">

@@ -35,3 +35,9 @@ npm run clean
 ## 部署
 
 推送到 `main` 后，GitHub Actions 会自动构建并部署到 GitHub Pages。
+
+## 集中管理与 Cloudflare
+
+源码位于 `D:\coding\domain\tools\dude-arithmetic`，保留独立 Git 仓库。根目录执行 `node build.mjs` 将工具构建到 `dist/dude-arithmetic/`，在 `https://taxcalculatetools.com/dude-arithmetic/` 使用；页面统一导航页玻璃风格并提供返回导航入口。
+
+页面包含 `noindex, nofollow` 元标签，Cloudflare 站点通配响应头同样禁止收录；无需登录，保持网址直接访问。生成计算仍在浏览器本地进行，原有打印排版逻辑保持不变。

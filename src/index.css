@@ -1,14 +1,53 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Nunito", "Comic Sans MS", "Chalkboard SE", "Comic Neue", sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+  --color-blue-50: #f0f2fb;
+  --color-blue-100: #e1e6f8;
+  --color-blue-200: #c8d1ef;
+  --color-blue-400: #899bd9;
+  --color-blue-500: #687bd1;
+  --color-blue-600: #596cc4;
+  --color-blue-700: #4e5da4;
+  --color-gray-800: #25314b;
 }
 
 body {
-  background-color: #f0f8ff;
-  background-image: radial-gradient(#bde0fe 2px, transparent 2px), radial-gradient(#bde0fe 2px, transparent 2px);
-  background-size: 40px 40px;
-  background-position: 0 0, 20px 20px;
-  color: #333;
+  margin: 0;
   min-height: 100vh;
+  color: #25314b;
+  background: radial-gradient(ellipse at 16% 12%,#c9d7ffb3,transparent 46%),
+    radial-gradient(ellipse at 48% 36%,#e4cfff80,transparent 48%),
+    radial-gradient(ellipse at 82% 8%,#c9eee88c,transparent 42%),
+    linear-gradient(145deg,#f5f7fc,#eaf0f8);
+  background-attachment: fixed;
+}
+
+.glass-panel, .glass-modal {
+  background: linear-gradient(135deg,#ffffff9c,#ffffff3d);
+  border: 1px solid #ffffffbd;
+  box-shadow: inset 0 1px 0 #ffffffe6,inset 0 -1px 0 #ffffff4d,
+    0 8px 32px #52678e12,0 2px 6px #52678e08;
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  backdrop-filter: blur(24px) saturate(160%);
+}
+.glass-panel { border-radius: 26px; }
+.glass-modal { background: linear-gradient(135deg,#fffffff2,#f4f6fcf0); }
+.tool-navigation a {
+  display: inline-flex;
+  padding: 10px 16px;
+  border: 1px solid #ffffffbd;
+  border-radius: 16px;
+  background: #ffffff70;
+  color: #596cc4;
+  font-size: 14px;
+  text-decoration: none;
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+  box-shadow: inset 0 1px 0 #fff,0 4px 14px #52678e0c;
+}
+.tool-navigation a:hover { background: #ffffffb3; }
+button:focus-visible, a:focus-visible { outline: 3px solid #687bd1; outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
 }
